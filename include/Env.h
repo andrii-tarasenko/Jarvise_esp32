@@ -22,4 +22,13 @@ extern const char *API_ROOM_ROUTE;
 extern const unsigned long READ_INTERVAL;
 extern const unsigned long END_INTERVAL;
 
+// Inverter RS232 Pins
+#define INVERTER_RX_PIN 18
+#define INVERTER_TX_PIN 19
+
+// BME280 Settings
+#define BME280_SDA_PIN 21
+#define BME280_SCL_PIN 22
+extern const uint8_t I2C_BME280_ADDRESS;
+
 #endif
