@@ -1,144 +1,221 @@
 #include "InverterReader.h"
 #include "Env.h"
+#include "Logger.h"
 
-// 2400 baud is standard for EASUN/Voltronic RS232
-#define INVERTER_BAUD 2400 
-#define POLL_INTERVAL 5000 // Query every 5 seconds
-#define TIMEOUT 2000       // 2 seconds timeout for response
+#define SLAVE_ID 255
+#define INVERTER_BAUD 9600
+#define POLL_INTERVAL 2000
+#define TIMEOUT 500
 
-InverterReader::InverterReader(int rx, int tx)
-  : serialPort(1), rxPin(rx), txPin(tx) {
+InverterReader::InverterReader(int rx, int tx) : rxPin(rx), txPin(tx) {
   lastCommandTime = 0;
   lastReceiveTime = 0;
   waitingForResponse = false;
-  buffer = "";
   lastData.isValid = false;
+  lastScannerStepTime = 0;
+  scannerActive = false;
+  currentBaudIndex = 0; // 9600
+  currentSlaveIndex = 0;
 }
 
 void InverterReader::begin() {
-  serialPort.begin(INVERTER_BAUD, SERIAL_8N1, rxPin, txPin);
-  Serial.println("🔌 InverterReader initialized on Serial1 (Pins: RX=" + String(rxPin) + ", TX=" + String(txPin) + ")");
+  Serial2.begin(9600, SERIAL_8N1, rxPin, txPin);
+  // node.begin(SLAVE_ID, Serial2); // Modbus is disabled by default
+  logRemote("✅ Inverter Communication established at 9600 baud (PI30)");
 }
 
-// Voltronic standard CRC-16 (XMODEM) calculation
-unsigned int InverterReader::calcCRC(const char *cmd) {
-  unsigned int crc = 0;
-  int i = 0;
-  while (cmd[i] != '\0') {
-    crc = crc ^ (((unsigned int)cmd[i]) << 8);
-    for (int j = 0; j < 8; j++) {
-      if (crc & 0x8000)
-        crc = (crc << 1) ^ 0x1021;
-      else
-        crc <<= 1;
+void InverterReader::process() {
+  if (millis() - lastCommandTime > POLL_INTERVAL) {
+    pollQpigs();
+    lastCommandTime = millis();
+  }
+}
+
+void InverterReader::startScanner() {
+  logRemote("ℹ️ Scanner disabled: Communication already active at 9600.");
+}
+
+void InverterReader::processScanner() {
+  // Disabled
+}
+
+void InverterReader::pollQpigs() {
+  // Full packet for QPIGS + CRC + \r in Hex (NO LEADING BRACKET):
+  // 51 50 49 47 53 B7 A9 0D
+  const uint8_t qpigs_raw[] = {0x51, 0x50, 0x49, 0x47, 0x53, 0xB7, 0xA9, 0x0D};
+  
+  // Log outgoing hex
+  String outHex = "";
+  for (size_t i = 0; i < sizeof(qpigs_raw); i++) {
+    char h[4];
+    sprintf(h, "%02X ", qpigs_raw[i]);
+    outHex += h;
+  }
+  logRemote("➡️ Sending PI30 (HEX): " + outHex);
+
+  // Clear buffer
+  while (Serial2.available())
+    Serial2.read();
+
+  Serial2.write(qpigs_raw, sizeof(qpigs_raw));
+
+  unsigned long start = millis();
+  bool dataReceived = false;
+  String rawAscii = "";
+  
+  while (millis() - start < 5000) {
+    if (Serial2.available() > 0) {
+      dataReceived = true;
+      uint8_t b = Serial2.read();
+      if (b >= 32 && b <= 126) rawAscii += (char)b;
+      else if (b == 0x0D) rawAscii += "\r";
     }
-    i++;
+    if (dataReceived && rawAscii.endsWith("\r")) break;
+    delay(10);
+  }
+
+  if (dataReceived) {
+    logRemote("📡 Inverter Response: " + rawAscii);
+    
+    // Check if it starts with ( or a digit
+    if (rawAscii.startsWith("(") || isdigit(rawAscii[0])) {
+      // (226.0 50.0... or 226.0 50.0...
+      // If it starts with (, skip it
+      int skip = (rawAscii.startsWith("(")) ? 1 : 0;
+      char buf[rawAscii.length() + 1];
+      strcpy(buf, rawAscii.c_str() + skip);
+      
+      char *p = buf;
+      char *str;
+      int i = 0;
+      
+      lastData.isValid = true;
+      while ((str = strtok_r(p, " ", &p)) != NULL) {
+        float val = atof(str);
+        switch (i) {
+        case 0: lastData.grid_voltage = val; break;
+        case 1: lastData.grid_freq = val; break;
+        case 2: lastData.output_voltage = val; break;
+        case 3: lastData.output_freq = val; break;
+        case 4: lastData.output_va = (int)val; break;
+        case 5: lastData.output_power = (int)val; break;
+        case 6: lastData.output_load_percent = (int)val; break;
+        case 7: lastData.bus_voltage = (int)val; break;
+        case 8: lastData.battery_voltage = val; break;
+        case 9: lastData.battery_charging_current = (int)val; break;
+        case 10: lastData.battery_capacity = (int)val; break;
+        case 11: lastData.inverter_heatsink_temp = (int)val; break;
+        case 12: lastData.pv_input_current_for_battery = val; break;
+        case 13: lastData.pv_input_voltage = val; break;
+        case 14: lastData.battery_voltage_from_scc = val; break;
+        case 15: lastData.battery_discharge_current = (int)val; break;
+        }
+        i++;
+      }
+      logRemote("🎯 Parsed PI30 data successfully.");
+    }
+  } else {
+    logRemote("⚠️ PI30 Timeout: Absolutely no data received.");
+    lastData.isValid = false;
+  }
+}
+
+uint16_t InverterReader::calculateCRC(const char *pin, uint8_t len) {
+  uint16_t crc = 0x0000;
+  for (uint8_t i = 0; i < len; i++) {
+    crc ^= (uint16_t)pin[i] << 8;
+    for (uint8_t j = 0; j < 8; j++) {
+      if (crc & 0x8000) crc = (crc << 1) ^ 0x1021;
+      else crc <<= 1;
+    }
   }
   return crc;
 }
 
-void InverterReader::sendCommand(String command) {
-  unsigned int crc = calcCRC(command.c_str());
-  char crcBuf[3];
-  crcBuf[0] = (crc >> 8) & 0xFF; // High byte
-  crcBuf[1] = crc & 0xFF;        // Low byte
-  crcBuf[2] = '\r';              // Carriage return
+void InverterReader::testLoopback() {
+  logRemote("🧪 Starting Pin Loopback Test...");
+  logRemote("ℹ️ Please short pins " + String(rxPin) + " and " + String(txPin) +
+            " now!");
 
-  serialPort.print(command);
-  serialPort.write((uint8_t)crcBuf[0]);
-  serialPort.write((uint8_t)crcBuf[1]);
-  serialPort.write((uint8_t)crcBuf[2]);
+  delay(2000); // Give time to short
 
-  Serial.println("=> Sent to Inverter: " + command);
-}
+  String testMsg = "ESP32_PIN_TEST_" + String(millis());
+  Serial2.println(testMsg);
 
-void InverterReader::process() {
-  // If it's time to poll, and we aren't currently waiting (or a timeout occurred)
-  if (millis() - lastCommandTime > POLL_INTERVAL) {
-    if (!waitingForResponse || (millis() - lastReceiveTime > TIMEOUT)) {
-      if (waitingForResponse) {
-         Serial.println("⚠️ Inverter response timeout.");
-         lastData.isValid = false; // Mark data as stale if we lost connection
-      }
-      
-      buffer = "";
-      waitingForResponse = true;
-      lastCommandTime = millis();
-      lastReceiveTime = millis();
-      sendCommand("QPIGS");
-    }
-  }
+  delay(100);
 
-  // Check for incoming data
-  while (serialPort.available() > 0) {
-    char c = serialPort.read();
-    lastReceiveTime = millis();
-
-    if (c == '\r') {
-      // End of message
-      waitingForResponse = false;
-      Serial.println("<= Received from Inverter: " + buffer);
-      parseData(buffer);
-      buffer = "";
+  if (Serial2.available()) {
+    String received = Serial2.readString();
+    if (received.indexOf(testMsg) != -1) {
+      logRemote("✅ LOOPBACK SUCCESS! Pins " + String(rxPin) + " and " +
+                String(txPin) + " are working correctly.");
     } else {
-      buffer += c;
-      // Safeguard against buffer overflow
-      if(buffer.length() > 200) buffer = ""; 
+      logRemote(
+          "⚠️ Loopback received data, but it didn't match. Check connections.");
     }
+  } else {
+    logRemote("❌ LOOPBACK FAILED! No data received. Pins " + String(rxPin) +
+              "/" + String(txPin) + " might be damaged or not shorted.");
   }
 }
 
-void InverterReader::parseData(String payload) {
-  // Example QPIGS response:
-  // (230.0 21.5 230.0 50.0 12.5 2150 2000 48.0 20.0 100 12.0 40.0 1200\r
-  
-  if (!payload.startsWith("(")) {
-    Serial.println("❌ Invalid inverter payload format: " + payload);
-    return;
+void InverterReader::pollRegisters() {
+  uint8_t result;
+
+  // Chunk 1: Basic Info & Battery & PV (0x0100 - 0x010F)
+  result = node.readHoldingRegisters(0x0100, 16);
+  if (result == node.ku8MBSuccess) {
+    lastData.isValid = true;
+    lastData.battery_capacity = node.getResponseBuffer(0x00); // 0x0100: SOC (%)
+    lastData.battery_voltage =
+        node.getResponseBuffer(0x01) / 10.0f; // 0x0101: 0.1V
+    lastData.battery_charging_current =
+        (int16_t)node.getResponseBuffer(0x02) / 10; // 0x0102: 0.1A
+
+    lastData.pv_input_voltage =
+        node.getResponseBuffer(0x07) / 10.0f; // 0x0107: 0.1V
+    lastData.pv_input_current_for_battery =
+        node.getResponseBuffer(0x08) / 10.0f; // 0x0108: 0.1A
+    lastData.pv_input_power_approx = node.getResponseBuffer(0x09); // 0x0109: 1W
+
+    logRemote("⚡ Modbus chunk 1 read success.");
+  } else {
+    logRemote("⚠️ Modbus error 0x0" + String(result, HEX) + " reading 0x0100");
+    lastData.isValid = false;
+    return; // Don't continue if first chunk failed
   }
 
-  payload = payload.substring(1);
-  
-  String tokens[25]; 
-  int tokenCount = 0;
-  int startIndex = 0;
-  for (int i = 0; i <= payload.length(); i++) {
-    if (i == payload.length() || payload.charAt(i) == ' ') {
-      tokens[tokenCount] = payload.substring(startIndex, i);
-      tokenCount++;
-      startIndex = i + 1;
-      if (tokenCount >= 25) break; 
-    }
+  delay(50); // Small pause between requests
+
+  // Chunk 2: AC & Output (0x0200 - 0x0217)
+  result = node.readHoldingRegisters(0x0200, 24); // 24 regs to reach 0x0217
+  if (result == node.ku8MBSuccess) {
+    // 0x0201: AC Input Voltage (0.1V)
+    lastData.grid_voltage = node.getResponseBuffer(0x01) / 10.0f;
+    // 0x0202: AC Input Frequency (0.01Hz)
+    lastData.grid_freq = node.getResponseBuffer(0x02) / 100.0f;
+
+    // 0x0208: AC Output Voltage (0.1V)
+    lastData.output_voltage = node.getResponseBuffer(0x08) / 10.0f;
+    // 0x0209: AC Output Frequency (0.01Hz)
+    lastData.output_freq = node.getResponseBuffer(0x09) / 100.0f;
+
+    // 0x020A: AC Output Active Power (W)
+    lastData.output_power = node.getResponseBuffer(0x0A);
+    // 0x020B: AC Output Apparent Power (VA)
+    lastData.output_va = node.getResponseBuffer(0x0B);
+
+    // 0x020C: Output Load (%)
+    lastData.output_load_percent = node.getResponseBuffer(0x0C);
+
+    // 0x0217: Inverter Temperature (1°C)
+    // 0x0217 is 23 registers offset from 0x0200
+    lastData.inverter_heatsink_temp = (int16_t)node.getResponseBuffer(23);
+
+    logRemote("⚡ Modbus chunk 2 read success.");
+  } else {
+    logRemote("⚠️ Modbus error 0x0" + String(result, HEX) + " reading 0x0200");
   }
-
-  if (tokenCount < 15) {
-     Serial.println("❌ Not enough data parameters from inverter.");
-     return;
-  }
-
-  // Populate the struct instead of a JSON document.
-  lastData.isValid = true;
-  lastData.grid_voltage = tokens[0].toFloat();
-  lastData.grid_freq = tokens[1].toFloat();
-  lastData.output_voltage = tokens[2].toFloat();
-  lastData.output_freq = tokens[3].toFloat();
-  lastData.output_va = tokens[4].toInt();
-  lastData.output_power = tokens[5].toInt();
-  lastData.output_load_percent = tokens[6].toInt();
-  lastData.bus_voltage = tokens[7].toInt();
-  lastData.battery_voltage = tokens[8].toFloat();
-  lastData.battery_charging_current = tokens[9].toInt();
-  lastData.battery_capacity = tokens[10].toInt();
-  lastData.inverter_heatsink_temp = tokens[11].toInt();
-  lastData.pv_input_current_for_battery = tokens[12].toFloat();
-  lastData.pv_input_voltage = tokens[13].toFloat();
-  lastData.battery_voltage_from_scc = tokens[14].toFloat();
-  lastData.battery_discharge_current = tokens[15].toInt();
-  lastData.pv_input_power_approx = tokens[13].toFloat() * tokens[12].toFloat();
-
-  Serial.println("⚡ Inverter data parsed and stored in memory.");
 }
 
-InverterData InverterReader::getData() {
-  return lastData;
-}
+InverterData InverterReader::getData() { return lastData; }

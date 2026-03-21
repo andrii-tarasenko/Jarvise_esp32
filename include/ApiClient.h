@@ -6,8 +6,10 @@
 class ApiClient {
 public:
   ApiClient();
-  void sendPostRequest(String const &route, String const &method, String &payload);
-  void registerDevice(const String &ip, String const &route, String const &method, String &payload);
+  void sendPostRequest(String const &payload);
+  void registerDevice(String const &ip);
+  void sendPostRequestDetailed(String const &route, String const &payload);
+  void sendLog(String const &message);
 };
 
 #endif // API_CLIENT_H

@@ -4,68 +4,42 @@
 
 ApiClient::ApiClient() {}
 
-
-void ApiClient::sendPostRequest(String const &route, String const &method, String &payload) {
-  WiFiClient client;
-
-//   if (!client.connect(SERVER_HOST, SERVER_PORT)) {
-//     Serial.println("❌ Connection to server failed!");
-//     return;
-//   }
-
-  String request = method + route + " HTTP/1.1\r\n" +
-                   "Host: " + VIRTUAL_HOST + "\r\n" +
-                   "Content-Type: application/json\r\n" +
-                   "Content-Length: " + payload.length() + "\r\n" +
-                   "Connection: close\r\n\r\n" + payload;
-
-  // Serial.println("\n=== SENDING TO SERVER ===");
-  // Serial.println(payload);
-
-  // Відправляємо пакет по TCP/IP до вашого бекенду 
-  client.print(request);
-
-  // --- Читаємо відповідь від сервера (хоча б перший рядок), щоб звільнити буфер і перевірити статуси ---
-  // Serial.print("=== SERVER RESPONSE: ");
-  while (client.connected() || client.available()) {
-    if (client.available()) {
-      String line = client.readStringUntil('\n'); // Читаємо перший рядок (напр., HTTP/1.1 200 OK)
-      // Serial.println(line);
-      break; 
-    }
-  }
-  Serial.println("=========================\n");
-
-  client.stop(); // Закриваємо з'єднання
+void ApiClient::sendPostRequest(String const &payload) {
+  sendPostRequestDetailed(API_GRID_ROUTE, payload);
 }
 
-void ApiClient::registerDevice(const String &ip, String const &route, String const &method, String &payload) {
+void ApiClient::sendPostRequestDetailed(String const &route, String const &payload) {
   WiFiClient client;
-//   if (!client.connect(SERVER_HOST, SERVER_PORT)) {
-//     Serial.println("❌ Connection to server failed during registration!");
-//     return;
-//   }
+  if (!client.connect(SERVER_HOST, SERVER_PORT)) {
+    Serial.println("❌ Connection to server failed!");
+    return;
+  }
 
-  String request = method + route + " HTTP/1.1\r\n" +
+  String request = String("POST ") + route + " HTTP/1.1\r\n" +
                    "Host: " + VIRTUAL_HOST + "\r\n" +
                    "Content-Type: application/json\r\n" +
                    "Content-Length: " + payload.length() + "\r\n" +
                    "Connection: close\r\n\r\n" + payload;
 
-  Serial.println("\n=== REGISTERING DEVICE ===");
-  Serial.println(payload);
-
   client.print(request);
 
-  Serial.print("=== SERVER RESPONSE: ");
   while (client.connected() || client.available()) {
     if (client.available()) {
       String line = client.readStringUntil('\n');
-      Serial.println(line);
-      break;
+      Serial.println("=== SERVER RESPONSE: " + line);
+      break; 
     }
   }
- Serial.println("=========================\n");
 
   client.stop();
+}
+
+void ApiClient::registerDevice(String const &ip) {
+  String payload = "{\"device\":\"invertor_room\",\"ip\":\"" + ip + "\"}";
+  sendPostRequestDetailed(API_ROOM_ROUTE, payload);
+}
+
+void ApiClient::sendLog(String const &message) {
+  String payload = "{\"device\":\"invertor_room\",\"log\":\"" + message + "\"}";
+  sendPostRequestDetailed(API_LOGS_ROUTE, payload);
 }

@@ -3,8 +3,6 @@
 
 #include <Arduino.h>
 #include <ArduinoJson.h>
-#include "ApiClient.h"
-#include <HardwareSerial.h>
 
 struct InverterData {
   bool isValid;
@@ -27,31 +25,44 @@ struct InverterData {
   float pv_input_power_approx;
 };
 
+#include <ModbusMaster.h>
+
 class InverterReader {
 public:
   InverterReader(int rxPin, int txPin);
   void begin();
   void process();
   InverterData getData();
+  
+  void startScanner();
+  void testLoopback();
+  bool isScannerActive() { return scannerActive; }
 
 private:
-  HardwareSerial serialPort;
   int rxPin;
   int txPin;
+  ModbusMaster node;
 
   InverterData lastData;
 
   unsigned long lastCommandTime;
   unsigned long lastReceiveTime;
+  unsigned long lastScannerStepTime;
   
-  // State machine indicators
   bool waitingForResponse;
-  String buffer;
+  bool scannerActive;
+  bool isModbusMode;
+  
+  int currentBaudIndex;
+  int currentSlaveIndex;
+  
+  const uint32_t baudRates[4] = {2400, 4800, 9600, 19200};
+  const uint8_t slaveIds[2] = {0, 1};
 
-  // Helpers
-  void sendCommand(String command);
-  unsigned int calcCRC(const char *cmd);
-  void parseData(String payload);
+  void pollRegisters();
+  void pollQpigs();
+  void processScanner();
+  uint16_t calculateCRC(const char *pin, uint8_t len);
 };
 
 #endif // INVERTER_READER_H
