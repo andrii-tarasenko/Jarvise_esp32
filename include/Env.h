@@ -28,8 +28,8 @@ extern const unsigned long END_INTERVAL;
 // #define INVERTER_TX_PIN 19
 #define INVERTER_RX_PIN 18
 #define INVERTER_TX_PIN 19
-//#define INVERTER_RX_PIN 16
-//#define INVERTER_TX_PIN 17
+// #define INVERTER_RX_PIN 16
+// #define INVERTER_TX_PIN 17
 
 // BME280 Settings
 #define BME280_SDA_PIN 21

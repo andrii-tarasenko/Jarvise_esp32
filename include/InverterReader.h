@@ -1,7 +1,8 @@
-#ifndef INVERTER_READER_H
-#define INVERTER_READER_H
+#ifndef IN_READER_H
+#define IN_READER_H
 
 #include <Arduino.h>
+#include <stdint.h>
 #include <ArduinoJson.h>
 
 struct InverterData {
@@ -23,46 +24,38 @@ struct InverterData {
   float battery_voltage_from_scc;
   int battery_discharge_current;
   float pv_input_power_approx;
-};
 
-#include <ModbusMaster.h>
+  // Конструктор для ініціалізації нулями
+  InverterData() {
+    isValid = false;
+    grid_voltage = 0; grid_freq = 0; output_voltage = 0; output_freq = 0;
+    output_va = 0; output_power = 0; output_load_percent = 0; bus_voltage = 0;
+    battery_voltage = 0; battery_charging_current = 0; battery_capacity = 0;
+    inverter_heatsink_temp = 0; pv_input_current_for_battery = 0;
+    pv_input_voltage = 0; battery_voltage_from_scc = 0;
+    battery_discharge_current = 0; pv_input_power_approx = 0;
+  }
+};
 
 class InverterReader {
 public:
-  InverterReader(int rxPin, int txPin);
-  void begin();
-  void process();
-  InverterData getData();
-  
-  void startScanner();
-  void testLoopback();
-  bool isScannerActive() { return scannerActive; }
+  InverterReader(int rx, int tx);
+  void begin(uint32_t baud, bool invert); // Ініціалізація порту
+  void process();                 // Основний цикл опитування
+  InverterData getData();         // Отримати останні дані
 
 private:
-  int rxPin;
-  int txPin;
-  ModbusMaster node;
-
+  int rxPin, txPin;
+  unsigned long lastCommandTime;
+  unsigned long lastScannerStep;
+  int scannerIdx; // 0=9600N, 1=9600I, 2=2400N, 3=2400I
+  bool scannerActive;
+  
   InverterData lastData;
 
-  unsigned long lastCommandTime;
-  unsigned long lastReceiveTime;
-  unsigned long lastScannerStepTime;
-  
-  bool waitingForResponse;
-  bool scannerActive;
-  bool isModbusMode;
-  
-  int currentBaudIndex;
-  int currentSlaveIndex;
-  
-  const uint32_t baudRates[4] = {2400, 4800, 9600, 19200};
-  const uint8_t slaveIds[2] = {0, 1};
-
-  void pollRegisters();
-  void pollQpigs();
+  void pollQpigs();               // Відправка запиту QPIGS
   void processScanner();
-  uint16_t calculateCRC(const char *pin, uint8_t len);
+  uint16_t calculateCRC(const char *pin, uint8_t len); // Розрахунок контрольної суми
 };
 
-#endif // INVERTER_READER_H
+#endif // IN_READER_H
