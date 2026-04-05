@@ -14,7 +14,7 @@ GridData GridSensor::readData() {
 
   float voltage = pzem.voltage();
   float current = pzem.current();
-  float power = pzem.power(); 
+  float power = pzem.power();
   float energy = pzem.energy();
   float frequency = pzem.frequency();
   float power_f = pzem.pf();
@@ -24,7 +24,7 @@ GridData GridSensor::readData() {
     return data;
   }
 
-    data.isValid = true;
+  data.isValid = true;
   data.voltage = voltage;
   data.current = current;
   data.power = power;
