@@ -5,27 +5,31 @@
 #include <stdint.h>
 #include <ArduinoJson.h>
 
+/**
+ * Структура для зберігання даних інвертора.
+ * Містить основні електричні параметри, які ми отримуємо через QPIGS.
+ */
 struct InverterData {
-  bool isValid;
-  float grid_voltage;
-  float grid_freq;
-  float output_voltage;
-  float output_freq;
-  int output_va;
-  int output_power;
-  int output_load_percent;
-  int bus_voltage;
-  float battery_voltage;
-  int battery_charging_current;
-  int battery_capacity;
-  int inverter_heatsink_temp;
-  float pv_input_current_for_battery;
-  float pv_input_voltage;
-  float battery_voltage_from_scc;
-  int battery_discharge_current;
-  float pv_input_power_approx;
+  bool isValid;                    // Прапор валідності даних (чи успішно пройшов парсинг)
+  float grid_voltage;              // Напруга вхідної мережі (AC)
+  float grid_freq;                 // Частота вхідної мережі
+  float output_voltage;            // Вихідна напруга інвертора (на споживачів)
+  float output_freq;               // Вихідна частота
+  int output_va;                   // Повна потужність (ВА)
+  int output_power;                // Активна потужність (Вт) - реальне споживання
+  int output_load_percent;         // Відсоток навантаження
+  int bus_voltage;                 // Внутрішня напруга шини DC
+  float battery_voltage;           // Поточна напруга акумулятора
+  int battery_charging_current;    // Струм зарядки АКБ (А)
+  int battery_capacity;            // Заряд АКБ у відсотках
+  int inverter_heatsink_temp;      // Температура радіатора інвертора
+  float pv_input_current_for_battery; // Струм від сонячних панелей до АКБ
+  float pv_input_voltage;          // Напруга сонячних панелей (PV)
+  float battery_voltage_from_scc;  // Напруга АКБ згідно з контролером заряду
+  int battery_discharge_current;   // Струм розрядки АКБ (А)
+  float pv_input_power_approx;     // Розрахункова потужність панелей (V * A)
 
-  // Конструктор для ініціалізації нулями
+  // Конструктор за замовчуванням: обнуляє всі поля для запобігання "сміттю" в даних
   InverterData() {
     isValid = false;
     grid_voltage = 0; grid_freq = 0; output_voltage = 0; output_freq = 0;
@@ -37,25 +41,33 @@ struct InverterData {
   }
 };
 
+/**
+ * Клас для читання та обробки даних з інвертора через порт RS232.
+ */
 class InverterReader {
 public:
+  // Конструктор: приймає піни RX та TX для підключення MAX3232
   InverterReader(int rx, int tx);
-  void begin(uint32_t baud, bool invert); // Ініціалізація порту
-  void process();                 // Основний цикл опитування
-  InverterData getData();         // Отримати останні дані
+
+  // Ініціалізація Serial2 на швидкості 9600
+  void begin();                   
+
+  // Основний метод, який потрібно викликати в loop(): керує таймінгами опитування
+  void process();                 
+
+  // Повертає структуру з останніми отриманими даними
+  InverterData getData();         
 
 private:
-  int rxPin, txPin;
-  unsigned long lastCommandTime;
-  unsigned long lastScannerStep;
-  int scannerIdx; // 0=9600N, 1=9600I, 2=2400N, 3=2400I
-  bool scannerActive;
-  
-  InverterData lastData;
+  int rxPin, txPin;               // Збережені номери пінів
+  unsigned long lastCommandTime;  // Час останнього успішного запиту
+  InverterData lastData;          // Останній зліпок даних
 
-  void pollQpigs();               // Відправка запиту QPIGS
-  void processScanner();
-  uint16_t calculateCRC(const char *pin, uint8_t len); // Розрахунок контрольної суми
+  // Надсилає команду QPIGS та зчитує ASCII відповідь
+  void pollQpigs();               
+
+  // Розрахунок контрольної суми (CRC) для протоколу PI30
+  uint16_t calculateCRC(const char *pin, uint8_t len); 
 };
 
 #endif // IN_READER_H
