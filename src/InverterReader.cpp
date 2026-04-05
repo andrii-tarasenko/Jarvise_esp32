@@ -7,73 +7,37 @@
 
 InverterReader::InverterReader(int rx, int tx) : rxPin(rx), txPin(tx) {
   lastCommandTime = 0;
-  lastScannerStep = 0;
-  scannerIdx = 0;
-  scannerActive = true;
   lastData.isValid = false;
 }
 
-void InverterReader::begin(uint32_t baud, bool invert) {
-  Serial2.end();
-  delay(200);
-  Serial2.begin(baud, SERIAL_8N1, rxPin, txPin, invert);
-  logRemote("🔌 Serial2 config: " + String(baud) + (invert ? " [INVERTED]" : " [NORMAL]"));
+void InverterReader::begin() {
+  Serial2.begin(9600, SERIAL_8N1, rxPin, txPin);
+//  logRemote("✅ Connection with inverter: 9600 bod (OK)");
 }
 
 void InverterReader::process() {
-  if (scannerActive) {
-    processScanner();
-  } else if (millis() - lastCommandTime > POLL_INTERVAL) {
+  if (millis() - lastCommandTime > POLL_INTERVAL) {
     pollQpigs();
     lastCommandTime = millis();
-    
-    if (!lastData.isValid) {
-      logRemote("⚠️ Connection lost. Restarting scanner...");
-      scannerActive = true;
-      lastScannerStep = millis();
-    }
-  }
-}
-
-void InverterReader::processScanner() {
-  if (millis() - lastScannerStep > 15000) { 
-    lastScannerStep = millis();
-    
-    uint32_t baud = 9600;
-    bool invert = false;
-
-    // Спроби: 0=9600N, 1=9600I, 2=2400N, 3=2400I
-    switch(scannerIdx) {
-      case 1: baud = 9600; invert = true; break;
-      case 2: baud = 2400; invert = false; break;
-      case 3: baud = 2400; invert = true; break;
-      default: baud = 9600; invert = false; break;
-    }
-
-    begin(baud, invert);
-    logRemote("🔍 Scanner Step [" + String(scannerIdx) + "]: Trying " + String(baud) + (invert ? " Inverted" : " Normal"));
-    pollQpigs();
-    
-    if (lastData.isValid) {
-      logRemote("✅ Scanner SUCCESS on Step " + String(scannerIdx));
-      scannerActive = false;
-    } else {
-      scannerIdx = (scannerIdx + 1) % 4; // Цикл по 4-м режимам
-    }
   }
 }
 
 void InverterReader::pollQpigs() {
+  // Команда QPIGS з розрахованим CRC16 та символом повернення каретки \r (0x0D)
+  // HEX: 51 50 49 47 53 (QPIGS) + B7 A9 (CRC) + 0D (\r)
   const uint8_t qpigs_raw[] = {0x51, 0x50, 0x49, 0x47, 0x53, 0xB7, 0xA9, 0x0D};
-  
+
+  // Очищуємо вхідний буфер Serial, щоб старі байти не заважали новій відповіді
   while (Serial2.available()) Serial2.read();
+
+  // Надсилаємо 8 байтів команди в порт
   Serial2.write(qpigs_raw, sizeof(qpigs_raw));
 
   unsigned long start = millis();
   bool dataReceived = false;
   String rawAscii = "";
-  
-  while (millis() - start < 5000) {
+
+  while (millis() - start < 3000) {
     if (Serial2.available() > 0) {
       dataReceived = true;
       char c = Serial2.read();
@@ -83,33 +47,30 @@ void InverterReader::pollQpigs() {
     delay(2);
   }
 
-  if (dataReceived) {
-    String hexLog = "";
-    for (int j = 0; j < (int)rawAscii.length(); j++) {
-      char hex[4];
-      sprintf(hex, "%02X ", (uint8_t)rawAscii[j]);
-      hexLog += hex;
-    }
-    logRemote("📡 HEX: " + hexLog);
-    logRemote("📡 ASCII: " + rawAscii);
-    
+  if (dataReceived && rawAscii.length() > 20) {
+    // Відповідь PI30 зазвичай починається з дужки (
     if (rawAscii.indexOf('(') >= 0 || isdigit(rawAscii[0])) {
+
+      // Знаходимо початок даних після дужки
       int skip = (rawAscii.indexOf('(') >= 0) ? rawAscii.indexOf('(') + 1 : 0;
       String cleanData = rawAscii.substring(skip);
-      cleanData.trim();
-      
+      cleanData.trim(); // Прибираємо пробіли на початку та в кінці
+
+      // Створюємо буфер для розбиття рядка на частини
       char buf[cleanData.length() + 1];
       strcpy(buf, cleanData.c_str());
-      
+
       char *p = buf;
       char *str;
       int i = 0;
-      
+
+      // Скидаємо структуру даних у нулі перед заповненням
       lastData = InverterData();
       lastData.isValid = true;
-      
+
+      // Розбиваємо рядок за пробілами (strtok_r) і заповнюємо поля структури
       while ((str = strtok_r(p, " ", &p)) != NULL) {
-        float val = atof(str);
+        float val = atof(str); // Перетворюємо ASCII текст у число (float)
         switch (i) {
           case 0:  lastData.grid_voltage = val; break;
           case 1:  lastData.grid_freq = val; break;
@@ -130,15 +91,22 @@ void InverterReader::pollQpigs() {
         }
         i++;
       }
+
+      // Додатковий розрахунок по сонячних панелях (Вт = В * А)
       lastData.pv_input_power_approx = lastData.pv_input_voltage * lastData.pv_input_current_for_battery;
-      logRemote("📊 Parsed OK");
+
+      logRemote("📊 Інвертор: Power=" + String(lastData.output_power) + "W, Batt=" + String(lastData.battery_voltage) + "V");
     }
   } else {
-    logRemote("⚠️ Inverter Timeout (Waiting for response...)");
+    // Якщо за 3 секунди відповіді немає - ставимо статус невалідних даних
     lastData.isValid = false;
   }
 }
 
+/**
+ * Метод для розрахунку CRC (Cyclic Redundancy Check) для PI30.
+ * Використовує стандартний алгоритм CRC16-XMODEM.
+ */
 uint16_t InverterReader::calculateCRC(const char *pin, uint8_t len) {
   uint16_t crc = 0x0000;
   for (uint8_t i = 0; i < len; i++) {
