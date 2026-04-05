@@ -9,12 +9,12 @@ void ApiClient::sendPostRequest(String const &payload) {
 }
 
 bool ApiClient::sendInverterData(InverterData const &data) {
-  // Локальне логування для перевірки перед відправкою
-  Serial.printf("DEBUG: V_Grid=%.1f F_Grid=%.1f V_Out=%.1f\n", data.grid_voltage, data.grid_freq, data.output_voltage);
+  Serial.printf("DEBUG: V_Grid=%.1f V_Out=%.1f P_Out=%dВт\n",
+                data.grid_voltage, data.output_voltage, data.output_power);
 
   StaticJsonDocument<1024> doc;
   JsonObject root = doc.to<JsonObject>();
-  
+
   root["device"] = "invertor_room";
   root["inv_grid_voltage"] = (float)data.grid_voltage;
   root["inv_grid_freq"] = (float)data.grid_freq;
@@ -36,14 +36,16 @@ bool ApiClient::sendInverterData(InverterData const &data) {
 
   String payload;
   serializeJson(doc, payload);
+
   sendPostRequestDetailed(API_GRID_ROUTE, payload);
   return true;
 }
 
 void ApiClient::sendPostRequestDetailed(String const &route, String const &payload) {
   WiFiClient client;
+
   if (!client.connect(SERVER_HOST, SERVER_PORT)) {
-    Serial.println("❌ Connection to server failed!");
+    Serial.println("❌ Connection error");
     return;
   }
 
@@ -58,8 +60,8 @@ void ApiClient::sendPostRequestDetailed(String const &route, String const &paylo
   while (client.connected() || client.available()) {
     if (client.available()) {
       String line = client.readStringUntil('\n');
-      Serial.println("=== SERVER RESPONSE: " + line);
-      break; 
+      Serial.println("🌐 Server Response: " + line);
+      break;
     }
   }
 
@@ -71,7 +73,7 @@ void ApiClient::registerDevice(String const &ip) {
   sendPostRequestDetailed(API_ROOM_ROUTE, payload);
 }
 
-void ApiClient::sendLog(String const &message) {
-  String payload = "{\"device\":\"invertor_room\",\"log\":\"" + message + "\"}";
-  sendPostRequestDetailed(API_LOGS_ROUTE, payload);
-}
+//void ApiClient::sendLog(String const &message) {
+//  String payload = "{\"device\":\"invertor_room\",\"log\":\"" + message + "\"}";
+//  sendPostRequestDetailed(API_LOGS_ROUTE, payload);
+//}

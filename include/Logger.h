@@ -9,7 +9,7 @@ extern ApiClient *apiClient;
 inline void logRemote(String message) {
   Serial.println(message);
   if (apiClient != nullptr) {
-    apiClient->sendLog(message);
+//    apiClient->sendLog(message);
   }
 }
 

@@ -8,13 +8,15 @@
 class ApiClient {
 public:
   ApiClient(String const &baseUrl);
-  void sendPostRequest(String const &payload);
+
+  bool sendInverterData(InverterData const &data);
   void registerDevice(String const &ip);
-  void sendPostRequestDetailed(String const &route, String const &payload);
-  void sendLog(String const &message);
-  bool sendInverterData(InverterData const &data); // Новий метод
+//  void sendLog(String const &message);
+  void sendPostRequest(String const &payload);
+
 private:
   String serverUrl;
+  void sendPostRequestDetailed(String const &route, String const &payload);
 };
 
-#endif // API_CLIENT_H
+#endif
