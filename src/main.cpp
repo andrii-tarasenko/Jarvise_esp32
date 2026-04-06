@@ -5,8 +5,10 @@
 #include "ApiClient.h"
 #include "Logger.h"
 #include "Env.h"
+#include "GridSensor.h"
 
 NetworkManager *networkManager;
+GridSensor *gridSensor;
 InverterReader *inverterReader;
 ApiClient *apiClient;
 
@@ -15,8 +17,9 @@ const int SEND_INTERVAL = 5000;
 
 void setup() {
   Serial.begin(115200);
-
   delay(3000);
+
+  gridSensor = new GridSensor(PZEM_RX_PIN, PZEM_TX_PIN);
 
   networkManager = new NetworkManager();
   networkManager->connect();
@@ -36,14 +39,14 @@ void loop() {
 
   if (millis() - lastSendTime > SEND_INTERVAL) {
     if (networkManager->isConnected()) {
+
+      GridData gData = GridSensor->readData();
       InverterData data = inverterReader->getData();
 
-      if (data.isValid) {
-        if (apiClient->sendInverterData(data)) {
-          logRemote("☁️ Data were sent");
-        } else {
-          logRemote("⚠️ Data were not sent");
-        }
+      if (apiClient->sendESPData(data)) {
+        logRemote("☁️ Data were sent");
+      } else {
+        logRemote("⚠️ Data were not sent");
       }
     }
 
