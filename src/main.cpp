@@ -6,11 +6,13 @@
 #include "Logger.h"
 #include "Env.h"
 #include "GridSensor.h"
+#include "ClimateSensor.h"
 
 NetworkManager *networkManager;
 GridSensor *gridSensor;
 InverterReader *inverterReader;
 ApiClient *apiClient;
+ClimateSensor *climateSensor;
 
 unsigned long lastSendTime = 0;
 const int SEND_INTERVAL = 5000;
@@ -28,6 +30,9 @@ void setup() {
   inverterReader->begin();
 
   apiClient = new ApiClient(SERVER_HOST);
+
+  climateSensor = new ClimateSensor();
+  climateSensor->begin();
 }
 
 void loop() {
