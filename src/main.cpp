@@ -3,16 +3,20 @@
 #include "NetworkManager.h"
 #include "InverterReader.h"
 #include "ApiClient.h"
+#include "LocalWebServer.h"
 #include "Logger.h"
 #include "Env.h"
 #include "GridSensor.h"
 #include "ClimateSensor.h"
+#include "RelayController.h"
 
 NetworkManager *networkManager;
 GridSensor *gridSensor;
 InverterReader *inverterReader;
 ApiClient *apiClient;
 ClimateSensor *climateSensor;
+LocalWebServer *localWebServer;
+RelayController *relayController;
 
 unsigned long lastSendTime = 0;
 const int SEND_INTERVAL = 5000;
@@ -33,6 +37,9 @@ void setup() {
 
   climateSensor = new ClimateSensor();
   climateSensor->begin();
+
+  localWebServer = new LocalWebServer(SERVER_PORT, relayController, climateSensor);
+  localWebServer->begin();
 }
 
 void loop() {
@@ -45,7 +52,7 @@ void loop() {
   if (millis() - lastSendTime > SEND_INTERVAL) {
     if (networkManager->isConnected()) {
 
-      GridData gData = GridSensor->readData();
+      GridData gData = gridSensor->readData();
       InverterData data = inverterReader->getData();
 
       if (apiClient->sendESPData(data)) {
