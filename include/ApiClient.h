@@ -4,6 +4,7 @@
 #include <Arduino.h>
 #include <ArduinoJson.h>
 #include "InverterReader.h"
+#include "GridSensor.h"
 
 class ApiClient {
 public:

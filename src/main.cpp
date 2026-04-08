@@ -19,7 +19,6 @@ LocalWebServer *localWebServer;
 RelayController *relayController;
 
 unsigned long lastSendTime = 0;
-const int SEND_INTERVAL = 5000;
 
 void setup() {
   Serial.begin(115200);
@@ -38,6 +37,9 @@ void setup() {
   climateSensor = new ClimateSensor();
   climateSensor->begin();
 
+  relayController = new RelayController();
+  relayController->begin();
+
   localWebServer = new LocalWebServer(SERVER_PORT, relayController, climateSensor);
   localWebServer->begin();
 }
@@ -52,10 +54,10 @@ void loop() {
   if (millis() - lastSendTime > SEND_INTERVAL) {
     if (networkManager->isConnected()) {
 
-      GridData gData = gridSensor->readData();
       InverterData data = inverterReader->getData();
+      GridData gData = gridSensor->readData();
 
-      if (apiClient->sendESPData(data)) {
+      if (apiClient->sendESPData(data, gData)) {
         logRemote("☁️ Data were sent");
       } else {
         logRemote("⚠️ Data were not sent");
@@ -64,4 +66,6 @@ void loop() {
 
     lastSendTime = millis();
   }
+
+  localWebServer->handleClient();
 }

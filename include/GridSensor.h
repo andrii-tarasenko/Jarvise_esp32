@@ -33,6 +33,6 @@ class GridSensor {
     public:
     GridSensor(int rxPin, int txPin);
     GridData readData();
-}
+};
 
 #endif
