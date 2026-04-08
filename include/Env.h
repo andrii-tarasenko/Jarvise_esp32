@@ -3,19 +3,33 @@
 
 #include <Arduino.h>
 
-extern const char *WIFI_SSID;
-extern const char *WIFI_PASS;
+extern const char* const WIFI_SSID;
+extern const char* const WIFI_PASS;
 
-extern const char *SERVER_HOST;
+extern const char* const SERVER_HOST;
 extern const uint16_t SERVER_PORT;
-extern const char *VIRTUAL_HOST;
-extern const char *API_GRID_ROUTE;
-extern const char *API_ROOM_ROUTE;
-extern const char *API_LOGS_ROUTE;
+extern const char* const VIRTUAL_HOST;
+extern const char* const API_GRID_ROUTE;
+extern const char* const API_ROOM_ROUTE;
+extern const char* const API_LOGS_ROUTE;
 
+//requests
+extern const char* const RELAY_REQUEST;
+extern const char* const CLIMATE_REQUEST;
 
 extern const unsigned long READ_INTERVAL;
+extern const unsigned long SEND_INTERVAL;
 extern const unsigned long END_INTERVAL;
+
+// Relay
+#define NUM_RELAYS 4
+extern const int RELAY_PIN_ONE;
+extern const int RELAY_PIN_TWO;
+extern const int RELAY_PIN_THREE;
+extern const int RELAY_PIN_FOUR;
+
+//Motion Pins
+#define MOTION_PIN 27
 
 // PZEM-004T Pins
 #define PZEM_RX_PIN 16

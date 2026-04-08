@@ -1,7 +1,7 @@
-#include "InverterReader.h"
-#include "Logger.h"
 #include <Arduino.h>
 #include <string.h>
+#include "InverterReader.h"
+#include "Logger.h"
 
 #define POLL_INTERVAL 2000
 
@@ -12,7 +12,7 @@ InverterReader::InverterReader(int rx, int tx) : rxPin(rx), txPin(tx) {
 
 void InverterReader::begin() {
   Serial2.begin(9600, SERIAL_8N1, rxPin, txPin);
-  //  logRemote("✅ Connection with inverter: 9600 bod (OK)");
+//  logRemote("✅ Connection with inverter: 9600 bod (OK)");
 }
 
 void InverterReader::process() {
@@ -72,64 +72,30 @@ void InverterReader::pollQpigs() {
       while ((str = strtok_r(p, " ", &p)) != NULL) {
         float val = atof(str); // Перетворюємо ASCII текст у число (float)
         switch (i) {
-        case 0:
-          lastData.grid_voltage = val;
-          break;
-        case 1:
-          lastData.grid_freq = val;
-          break;
-        case 2:
-          lastData.output_voltage = val;
-          break;
-        case 3:
-          lastData.output_freq = val;
-          break;
-        case 4:
-          lastData.output_va = (int)val;
-          break;
-        case 5:
-          lastData.output_power = (int)val;
-          break;
-        case 6:
-          lastData.output_load_percent = (int)val;
-          break;
-        case 7:
-          lastData.bus_voltage = (int)val;
-          break;
-        case 8:
-          lastData.battery_voltage = val;
-          break;
-        case 9:
-          lastData.battery_charging_current = (int)val;
-          break;
-        case 10:
-          lastData.battery_capacity = (int)val;
-          break;
-        case 11:
-          lastData.inverter_heatsink_temp = (int)val;
-          break;
-        case 12:
-          lastData.pv_input_current_for_battery = val;
-          break;
-        case 13:
-          lastData.pv_input_voltage = val;
-          break;
-        case 14:
-          lastData.battery_voltage_from_scc = val;
-          break;
-        case 15:
-          lastData.battery_discharge_current = (int)val;
-          break;
+          case 0:  lastData.grid_voltage = val; break;
+          case 1:  lastData.grid_freq = val; break;
+          case 2:  lastData.output_voltage = val; break;
+          case 3:  lastData.output_freq = val; break;
+          case 4:  lastData.output_va = (int)val; break;
+          case 5:  lastData.output_power = (int)val; break;
+          case 6:  lastData.output_load_percent = (int)val; break;
+          case 7:  lastData.bus_voltage = (int)val; break;
+          case 8:  lastData.battery_voltage = val; break;
+          case 9:  lastData.battery_charging_current = (int)val; break;
+          case 10: lastData.battery_capacity = (int)val; break;
+          case 11: lastData.inverter_heatsink_temp = (int)val; break;
+          case 12: lastData.pv_input_current_for_battery = val; break;
+          case 13: lastData.pv_input_voltage = val; break;
+          case 14: lastData.battery_voltage_from_scc = val; break;
+          case 15: lastData.battery_discharge_current = (int)val; break;
         }
         i++;
       }
 
       // Додатковий розрахунок по сонячних панелях (Вт = В * А)
-      lastData.pv_input_power_approx =
-          lastData.pv_input_voltage * lastData.pv_input_current_for_battery;
+      lastData.pv_input_power_approx = lastData.pv_input_voltage * lastData.pv_input_current_for_battery;
 
-      logRemote("📊 Інвертор: Power=" + String(lastData.output_power) +
-                "W, Batt=" + String(lastData.battery_voltage) + "V");
+      logRemote("📊 Інвертор: Power=" + String(lastData.output_power) + "W, Batt=" + String(lastData.battery_voltage) + "V");
     }
   } else {
     // Якщо за 3 секунди відповіді немає - ставимо статус невалідних даних
@@ -146,10 +112,8 @@ uint16_t InverterReader::calculateCRC(const char *pin, uint8_t len) {
   for (uint8_t i = 0; i < len; i++) {
     crc ^= (uint16_t)pin[i] << 8;
     for (uint8_t j = 0; j < 8; j++) {
-      if (crc & 0x8000)
-        crc = (crc << 1) ^ 0x1021;
-      else
-        crc <<= 1;
+      if (crc & 0x8000) crc = (crc << 1) ^ 0x1021;
+      else crc <<= 1;
     }
   }
   return crc;
