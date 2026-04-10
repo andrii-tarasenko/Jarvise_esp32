@@ -50,13 +50,13 @@ public:
   InverterReader(int rx, int tx);
 
   // Ініціалізація Serial2 на швидкості 9600
-  void begin();                   
+  void begin();
 
   // Основний метод, який потрібно викликати в loop(): керує таймінгами опитування
-  void process();                 
+  void process();
 
   // Повертає структуру з останніми отриманими даними
-  InverterData getData();         
+  InverterData getData();
 
 private:
   int rxPin, txPin;               // Збережені номери пінів
@@ -64,10 +64,10 @@ private:
   InverterData lastData;          // Останній зліпок даних
 
   // Надсилає команду QPIGS та зчитує ASCII відповідь
-  void pollQpigs();               
+  void pollQpigs();
 
   // Розрахунок контрольної суми (CRC) для протоколу PI30
-  uint16_t calculateCRC(const char *pin, uint8_t len); 
+  uint16_t calculateCRC(const char *pin, uint8_t len);
 };
 
 #endif // IN_READER_H

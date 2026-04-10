@@ -28,6 +28,8 @@ extern const int RELAY_PIN_TWO;
 extern const int RELAY_PIN_THREE;
 extern const int RELAY_PIN_FOUR;
 
+extern const int RELAY_PINS[NUM_RELAYS];
+
 //Motion Pins
 #define MOTION_PIN 27
 

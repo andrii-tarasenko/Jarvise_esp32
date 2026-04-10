@@ -5,13 +5,13 @@
 #include <PZEM004Tv30.h>
 
 struct GridData {
-  bool isValid;
-  float voltage;
-  float current;
-  float power;
-  float energy;
-  float frequency;
-  float power_f;
+  bool isValid = false;
+  float voltage = 0.0f;
+  float current = 0.0f;
+  float power = 0.0f;
+  float energy = 0.0f;
+  float frequency = 0.0f;
+  float power_f = 0.0f;
 };
 
 struct SensorData {

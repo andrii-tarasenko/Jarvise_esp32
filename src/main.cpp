@@ -47,14 +47,11 @@ void setup() {
 void loop() {
   if (!networkManager->isConnected()) {
     networkManager->connect();
+    return;
   } //TODO else add cash for data
 
-  inverterReader->process();
-
   if (millis() - lastSendTime > SEND_INTERVAL) {
-    if (networkManager->isConnected()) {
-
-      InverterData data = inverterReader->getData();
+            InverterData data = inverterReader->getData();
       GridData gData = gridSensor->readData();
 
       if (apiClient->sendESPData(data, gData)) {
@@ -62,10 +59,14 @@ void loop() {
       } else {
         logRemote("⚠️ Data were not sent");
       }
-    }
 
     lastSendTime = millis();
   }
 
-  localWebServer->handleClient();
+        inverterReader->process();
+
+  if (networkManager->isConnected()) {
+    localWebServer->handleClient();
+  }
+        relayController->process();
 }

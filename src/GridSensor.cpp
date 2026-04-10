@@ -3,7 +3,7 @@
 #include <math.h>
 
 GridSensor::GridSensor(int rxPin, int txPin)
-    : pzem(Serial2, rxPin, txPin) {
+    : pzem(Serial1, rxPin, txPin) {
   last_power = -1.0;
   last_voltage = -1.0;
 }

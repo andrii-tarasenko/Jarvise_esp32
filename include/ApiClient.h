@@ -10,8 +10,7 @@ class ApiClient {
 public:
   ApiClient(String const &baseUrl);
 
-  bool sendESPData(InverterData const &data, GridData const &gData);
-//  bool sendInverterData(InverterData const &data);
+    bool sendESPData(InverterData const &data, GridData const &gData);
   void registerDevice(String const &ip);
 //  void sendLog(String const &message);
   void sendPostRequest(String const &payload);
