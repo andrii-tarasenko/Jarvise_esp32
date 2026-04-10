@@ -44,7 +44,7 @@ void InverterReader::pollQpigs() {
       rawAscii += c;
       if (c == 0x0D) break;
     }
-    // delay(2);
+    delay(2);
   }
 
   if (dataReceived && rawAscii.length() > 20) {

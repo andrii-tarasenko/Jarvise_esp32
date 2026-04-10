@@ -11,11 +11,11 @@ public:
   void process();
   void setServerState(int channel, bool state);
   bool getServerState(int channel) const;
-  bool getCurrentRelayState(int channel) const;
+  // bool getCurrentRelayState(int channel) const;
 
 private:
   bool serverState[NUM_RELAYS];
-  bool currentRelayState[NUM_RELAYS];
+  // bool currentRelayState[NUM_RELAYS];
 };
 
 #endif // RELAY_CONTROLLER_H

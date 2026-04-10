@@ -7,10 +7,10 @@ RelayController::RelayController() {
     serverState[2] = true;
     serverState[3] = false;
 
-    currentRelayState[0] = false;
-    currentRelayState[1] = false;
-    currentRelayState[2] = true;
-    currentRelayState[3] = false;
+    // currentRelayState[0] = false;
+    // currentRelayState[1] = false;
+    // currentRelayState[2] = true;
+    // currentRelayState[3] = false;
 }
 
 void RelayController::begin() {
@@ -48,12 +48,12 @@ bool RelayController::getServerState(int channel) const {
   return false;
 }
 
-bool RelayController::getCurrentRelayState(int channel) const {
- if (channel >= 1 && channel <= NUM_RELAYS) {
-   return currentRelayState[channel - 1];
- }
- return false;
-}
+// bool RelayController::getCurrentRelayState(int channel) const {
+//  if (channel >= 1 && channel <= NUM_RELAYS) {
+//    return currentRelayState[channel - 1];
+//  }
+//  return false;
+// }
 
 void RelayController::process() {
   static int stableMotionState = LOW;
@@ -146,7 +146,7 @@ void RelayController::process() {
 
     // Якщо потрібно перемкнути фізичний статус:
     // Порівнюємо shouldBeOn з ПОТОЧНИМ ФІЗИЧНИМ станом, а не з serverState
-    if (shouldBeOn != currentRelayState[i]) {
+    if (shouldBeOn != serverState[i]) {
       // Serial.printf("🔄 RELAY DEBUG: Ch %d, Target:%s, PrevPhysical:%s, serverState:%s, motion:%s\n",
       //               i+1, shouldBeOn?"ON":"OFF", serverState[i]?"ON":"OFF",
       //               currentRelayState[i]?"ON":"OFF", (motionDetected == HIGH)?"DETECTED":"NO");
@@ -162,7 +162,7 @@ void RelayController::process() {
         // Serial.println(" turned OFF");
       }
       // Оновлюємо поточний фізичний стан
-      currentRelayState[i] = shouldBeOn;
+      serverState[i] = shouldBeOn;
     }
   }
 }
